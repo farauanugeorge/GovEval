@@ -3,11 +3,10 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # LLM
-    llm_api_base_url: str = "https://api.openai.com/v1"
+    llm_api_base_url: str = "https://api.featherless.ai/v1"
     llm_api_key: str = ""
-    llm_model_id: str = "gpt-3.5-turbo"
-    llm_embedding_model_id: str = "text-embedding-ada-002"
-    embedding_dim: int = 1536
+    llm_model_id: str = "arcee-ai/Trinity-Large-Thinking"
+    embedding_dim: int = 384  # all-MiniLM-L6-v2 (local sentence-transformers)
 
     # Database
     database_url: str = "postgresql://goveval:goveval@localhost:5432/goveval"

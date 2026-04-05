@@ -70,7 +70,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
     )
     # Add vector column (alembic doesn't support pgvector natively)
-    op.execute("ALTER TABLE embeddings ADD COLUMN embedding vector(1536)")
+    op.execute("ALTER TABLE embeddings ADD COLUMN embedding vector(384)")
     op.execute("CREATE INDEX ON embeddings USING ivfflat (embedding vector_cosine_ops)")
 
 

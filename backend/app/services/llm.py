@@ -1,11 +1,16 @@
 import json
+import logging
+import re
 from typing import Optional
 
 from openai import OpenAI
 
 from app.config import settings
 
+logger = logging.getLogger(__name__)
+
 _client: Optional[OpenAI] = None
+_embedding_model = None
 
 
 def get_llm_client() -> OpenAI:
@@ -16,6 +21,11 @@ def get_llm_client() -> OpenAI:
             base_url=settings.llm_api_base_url,
         )
     return _client
+
+
+def _strip_thinking(text: str) -> str:
+    """Strip <thinking>...</thinking> blocks from model output."""
+    return re.sub(r"<thinking>.*?</thinking>", "", text, flags=re.DOTALL).strip()
 
 
 def generate_search_queries(policy_text: str) -> list[str]:
@@ -39,7 +49,7 @@ def generate_search_queries(policy_text: str) -> list[str]:
         max_tokens=500,
     )
 
-    raw = response.choices[0].message.content.strip()
+    raw = _strip_thinking(response.choices[0].message.content.strip())
     # Strip markdown code fences if present
     if raw.startswith("```"):
         raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
@@ -55,7 +65,7 @@ def generate_search_queries(policy_text: str) -> list[str]:
     return [line.strip().strip('"') for line in raw.split("\n") if line.strip()][:5]
 
 
-def generate_verdict(policy_text: str, abstracts: list[dict]) -> dict:
+def generate_verdict(policy_text: str, abstracts: list[dict]) -> tuple[dict, str]:
     client = get_llm_client()
 
     abstracts_text = ""
@@ -99,19 +109,22 @@ def generate_verdict(policy_text: str, abstracts: list[dict]) -> dict:
         max_tokens=2000,
     )
 
-    raw = response.choices[0].message.content.strip()
+    raw_output = response.choices[0].message.content
+    raw = _strip_thinking(raw_output.strip())
     if raw.startswith("```"):
         raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
 
-    return json.loads(raw), response.choices[0].message.content
+    return json.loads(raw), raw_output
 
 
 def get_embeddings(texts: list[str]) -> list[list[float]]:
-    client = get_llm_client()
+    """Generate embeddings using sentence-transformers locally."""
+    global _embedding_model
+    if _embedding_model is None:
+        from sentence_transformers import SentenceTransformer
 
-    response = client.embeddings.create(
-        model=settings.llm_embedding_model_id,
-        input=texts,
-    )
+        _embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+        logger.info("Loaded embedding model: all-MiniLM-L6-v2")
 
-    return [item.embedding for item in response.data]
+    embeddings = _embedding_model.encode(texts, show_progress_bar=False)
+    return [emb.tolist() for emb in embeddings]
